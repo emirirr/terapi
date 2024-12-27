@@ -1,13 +1,12 @@
 import tkinter as tk
-from tkinter import ttk
-from tkinter import messagebox
+from tkinter import ttk, messagebox
 import threading
 import time
 import sqlite3
-from playsound import playsound
+import os
+from tkinter import PhotoImage
 
-
-# Veritabanı oluşturma
+# Veritabanı başlatma ve yönetimi
 def initialize_database():
     conn = sqlite3.connect("therapy_history.db")
     cursor = conn.cursor()
@@ -24,8 +23,6 @@ def initialize_database():
     conn.commit()
     conn.close()
 
-
-# Veritabanına kayıt ekleme
 def log_therapy(therapy_type, mode, duration, status):
     conn = sqlite3.connect("therapy_history.db")
     cursor = conn.cursor()
@@ -36,8 +33,6 @@ def log_therapy(therapy_type, mode, duration, status):
     conn.commit()
     conn.close()
 
-
-# Geçmişi görüntüleme
 def view_history():
     conn = sqlite3.connect("therapy_history.db")
     cursor = conn.cursor()
@@ -46,35 +41,45 @@ def view_history():
     conn.close()
     return records
 
+def play_sound(file_path):
+    if os.path.exists(file_path):
+        try:
+            from playsound import playsound
+            playsound(file_path)
+        except Exception as e:
+            print(f"Ses çalınamadı: {e}")
+    else:
+        print(f"Ses dosyası bulunamadı: {file_path}")
 
-# Sesli bildirim (playsound kullanılıyor)
-def play_sound():
-    if app.sound_enabled:
-        playsound('D:/calismalar/Python/chatapp/complete.wav')  # Ses dosyasını buraya ekleyin
 
-
-# Tkinter arayüzü
 class TherapyApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Göğüs Terapi Cihazı")
+        self.geometry("500x500")
+        self.config(bg="#f2f2f2")  # Arka plan rengi
+
         self.current_frame = None
         self.therapy_type = tk.StringVar()
         self.mode = tk.StringVar()
         self.duration = tk.IntVar(value=1)
         self.running = False
         self.timer_thread = None
-        self.sound_enabled = True  # Varsayılan olarak sesi aç
+        self.sound_enabled = True
+        self.sound_file = "complete.wav"
+
+        # Logo için fotoğraf yükleme
+        self.logo = PhotoImage(file=r"D:\calismalar\Python\terapi\assets\logo.png")  # Logo dosyasının tam yolu
+
         initialize_database()
         self.show_welcome_screen()
 
     def switch_frame(self, frame_class):
-        # Eğer mevcut bir sayfa varsa, onu yok et
         if self.current_frame:
             self.current_frame.destroy()
-        # Yeni sayfayı oluştur
         self.current_frame = frame_class(self)
-        self.current_frame.pack(fill="both", expand=True)
+        self.current_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        self.add_logo()  # Logo ekleme fonksiyonunu burada çağırıyoruz
 
     def show_welcome_screen(self):
         self.switch_frame(WelcomeScreen)
@@ -97,16 +102,18 @@ class TherapyApp(tk.Tk):
         self.timer_thread.start()
 
     def run_timer(self, duration):
-        for elapsed in range(1, duration + 1):
+        for elapsed in range(duration):
             if not self.running:
                 break
             time.sleep(1)
-            progress = int((elapsed / duration) * 100)
-            self.current_frame.update_timer(duration - elapsed, progress)
+            remaining_time = duration - elapsed - 1
+            progress = int(((elapsed + 1) / duration) * 100)
+            self.current_frame.update_timer(remaining_time, progress)
         if self.running:
             self.current_frame.update_timer(0, 100)
             log_therapy(self.therapy_type.get(), self.mode.get(), self.duration.get(), "Tamamlandı")
-            play_sound()  # Sesi oynat
+            if self.sound_enabled:
+                play_sound(self.sound_file)
             messagebox.showinfo("Terapi Tamamlandı", "Terapi tamamlandı!")
             self.show_therapy_selection_screen()
 
@@ -114,16 +121,17 @@ class TherapyApp(tk.Tk):
         self.running = False
         log_therapy(self.therapy_type.get(), self.mode.get(), self.duration.get(), "Durduruldu")
 
-    def finish_therapy(self):
-        self.running = False
-        self.show_therapy_selection_screen()
+    # Logo eklemek için fonksiyon
+    def add_logo(self):
+        if self.current_frame:  # Eğer current_frame var ise logo ekle
+            logo_label = tk.Label(self.current_frame, image=self.logo, bg="#f2f2f2")
+            logo_label.place(relx=1.0, rely=1.0, anchor='se', x=-10, y=-10)
 
 
 class WelcomeScreen(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
-        self.pack()
-        tk.Label(self, text="Göğüs Terapi Cihazı'na Hoş Geldiniz", font=("Arial", 16)).pack(pady=20)
+        tk.Label(self, text="Göğüs Terapi Cihazı'na Hoş Geldiniz", font=("Montserrat", 16)).pack(pady=20)
         tk.Button(self, text="Başla", command=master.show_therapy_selection_screen).pack(pady=10)
         tk.Button(self, text="Geçmiş", command=master.show_history_screen).pack(pady=10)
         tk.Button(self, text="Ayarlar", command=master.show_settings_screen).pack(pady=10)
@@ -132,27 +140,24 @@ class WelcomeScreen(tk.Frame):
 class TherapySelectionScreen(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
-        self.master = master
-        self.pack()
-        tk.Label(self, text="Terapi Türü Seçin").pack()
+        tk.Label(self, text="Terapi Türü Seçin", font=("Montserrat", 14)).pack(pady=10)
         ttk.Combobox(self, textvariable=master.therapy_type,
                      values=["Kol Terapisi", "Göğüs Terapisi", "Bacak Terapisi"]).pack(pady=10)
-        tk.Label(self, text="Mod Seçin").pack()
+        tk.Label(self, text="Mod Seçin", font=("Montserrat", 14)).pack(pady=10)
         ttk.Combobox(self, textvariable=master.mode, values=["Hafif", "Orta", "Yoğun"]).pack(pady=10)
-        tk.Button(self, text="Devam Et", command=master.show_therapy_control_screen).pack(pady=20)
+        tk.Button(self, text="Devam Et", command=master.show_therapy_control_screen).pack(pady=10)
+        tk.Button(self, text="Geri", command=master.show_welcome_screen).pack(pady=10)
 
 
 class TherapyControlScreen(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
-        self.master = master
-        self.pack()
-        tk.Label(self, text="Süreyi Ayarlayın (Dakika)").pack()
+        tk.Label(self, text="Süreyi Ayarlayın (Dakika)", font=("Montserrat", 14)).pack(pady=10)
         tk.Spinbox(self, from_=1, to=60, textvariable=master.duration).pack(pady=10)
         tk.Button(self, text="Başlat", command=lambda: master.start_timer(master.duration.get() * 60)).pack(pady=10)
         tk.Button(self, text="Durdur", command=master.stop_timer).pack(pady=10)
-        tk.Button(self, text="Bitir", command=master.finish_therapy).pack(pady=10)
-        self.timer_label = tk.Label(self, text="")
+        tk.Button(self, text="Geri", command=master.show_therapy_selection_screen).pack(pady=10)
+        self.timer_label = tk.Label(self, text="Kalan Süre: 00:00", font=("Montserrat", 14))
         self.timer_label.pack(pady=10)
         self.progress_bar = ttk.Progressbar(self, length=300, mode='determinate')
         self.progress_bar.pack(pady=10)
@@ -166,30 +171,26 @@ class TherapyControlScreen(tk.Frame):
 class HistoryScreen(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
-        self.pack()
+        tk.Label(self, text="Terapi Geçmişi", font=("Montserrat", 16)).pack(pady=10)
         records = view_history()
-        tk.Label(self, text="Terapi Geçmişi", font=("Arial", 16)).pack(pady=10)
-        for record in records:
-            tk.Label(self, text=f"{record[1]} | {record[2]} | {record[3]} dk | {record[4]}").pack()
+        if records:
+            for record in records:
+                tk.Label(self, text=f"{record[1]} | {record[2]} | {record[3]} dk | {record[4]}").pack()
+        else:
+            tk.Label(self, text="Geçmiş bulunamadı.", font=("Montserrat", 14)).pack()
         tk.Button(self, text="Geri Dön", command=master.show_welcome_screen).pack(pady=10)
 
 
 class SettingsScreen(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
-        self.master = master
-        self.pack()
-        tk.Label(self, text="Ayarlar", font=("Arial", 16)).pack(pady=20)
-
-        # Ses açma/kapama seçeneği
-        self.sound_check = tk.Checkbutton(self, text="Sesi Aç/Kapat",
-                                          variable=tk.BooleanVar(value=master.sound_enabled), command=self.toggle_sound)
-        self.sound_check.pack(pady=20)
-
+        tk.Label(self, text="Ayarlar", font=("Montserrat", 16)).pack(pady=20)
+        self.sound_var = tk.BooleanVar(value=master.sound_enabled)
+        tk.Checkbutton(self, text="Sesi Aç/Kapat", variable=self.sound_var, command=self.toggle_sound).pack(pady=20)
         tk.Button(self, text="Geri Dön", command=master.show_welcome_screen).pack(pady=10)
 
     def toggle_sound(self):
-        self.master.sound_enabled = not self.master.sound_enabled
+        self.master.sound_enabled = self.sound_var.get()
 
 
 if __name__ == "__main__":
