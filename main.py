@@ -59,6 +59,9 @@ class TherapyApp(tk.Tk):
         self.geometry("500x500")
         self.config(bg="#f2f2f2")  # Arka plan rengi
 
+        # Uygulama simgesini ekliyoruz
+        self.iconbitmap(r"D:\calismalar\Python\terapi\assets\icon.ico")
+
         self.current_frame = None
         self.therapy_type = tk.StringVar()
         self.mode = tk.StringVar()
@@ -73,6 +76,7 @@ class TherapyApp(tk.Tk):
 
         initialize_database()
         self.show_welcome_screen()
+
 
     def switch_frame(self, frame_class):
         if self.current_frame:
